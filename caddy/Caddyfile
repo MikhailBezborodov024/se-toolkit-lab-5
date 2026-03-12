@@ -1,7 +1,22 @@
 # See wiki/caddy.md
 
 :{$CADDY_CONTAINER_PORT} {
-    handle /items* {
+    header {
+        Access-Control-Allow-Origin *
+        Access-Control-Allow-Methods GET, POST, PUT, DELETE, OPTIONS
+        Access-Control-Allow-Headers Authorization, Content-Type
+        Access-Control-Max-Age 86400
+    }
+    
+    # Обработка preflight запросов
+    @options {
+        method OPTIONS
+    }
+    handle @options {
+        respond 204
+    }
+    
+handle /items* {
         reverse_proxy http://app:{$APP_CONTAINER_PORT}
     }
     handle /learners* {
