@@ -5,9 +5,11 @@ populated by the ETL pipeline. All endpoints require a `lab` query
 parameter to filter results by lab (e.g., "lab-01").
 """
 
+
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import select, func, case
 from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy import Numeric
 
 from app.database import get_session
 from app.models.item import ItemRecord
@@ -113,11 +115,11 @@ async def get_pass_rates(
     ).order_by(ItemRecord.title)
     result = await session.exec(stmt)
     tasks = result.all()
-    
+
     results = []
     for task in tasks:
         stmt = select(
-            func.round(func.avg(InteractionLog.score), 1).label("avg_score"),
+            func.avg(InteractionLog.score).label("avg_score"),
             func.count(InteractionLog.id).label("attempts")
         ).where(
             InteractionLog.item_id == task.id,
@@ -126,9 +128,10 @@ async def get_pass_rates(
         res = await session.exec(stmt)
         row = res.first()
         if row and row.attempts > 0:
+            avg_score = round(float(row.avg_score), 1) if row.avg_score else 0.0
             results.append({
                 "task": task.title,
-                "avg_score": float(row.avg_score) if row.avg_score else 0.0,
+                "avg_score": avg_score, 
                 "attempts": row.attempts
             })
     
@@ -215,11 +218,11 @@ async def get_groups(
     
     if not task_ids:
         return []
-    
+
     # Join interactions with learners, group by student_group
     stmt = select(
         Learner.student_group.label("group"),
-        func.round(func.avg(InteractionLog.score), 1).label("avg_score"),
+        func.avg(InteractionLog.score).label("avg_score"),
         func.count(func.distinct(Learner.id)).label("students")
     ).join(
         Learner, InteractionLog.learner_id == Learner.id
@@ -237,7 +240,7 @@ async def get_groups(
     return [
         {
             "group": row.group,
-            "avg_score": float(row.avg_score) if row.avg_score else 0.0,
+            "avg_score": round(float(row.avg_score), 1) if row.avg_score else 0.0,
             "students": row.students
         }
         for row in result
